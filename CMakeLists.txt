@@ -10,6 +10,17 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2_msgs
   tf
+  cv_bridge
+  pcl_conversions
+  pcl_ros
+  sensor_msgs
+  angles
+  nodelet
+  roslib
+  velodyne_msgs
+  #dynamic_reconfigure
+  velodyne_pointcloud
+  
 )
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -17,14 +28,45 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 SET(CMAKE_AUTOUIC ON)
 
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui)
+
+find_package(
+	VTK
+	REQUIRED
+  )
+  find_package(
+  PCL
+  QUIET
+  REQUIRED
+  )
+  # Fix a compilation bug under ubuntu 16.04 (Xenial)
+list(REMOVE_ITEM PCL_LIBRARIES "vtkproj4")
+add_definitions(${PCL_DEFINITIONS})
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES rosbag_editor
-  CATKIN_DEPENDS rosbag rosbag_storage roscpp tf2_msgs tf
+  CATKIN_DEPENDS rosbag rosbag_storage roscpp tf2_msgs tf 
 #  DEPENDS system_lib
+LIBRARIES velodyne_rawdata
 )
+
+find_package(OpenCV REQUIRED)
+
+catkin_package(
+        DEPENDS OpenCV                                #Non-catkin CMake projects
+)
+
+find_library(LIBAVUTIL_LIBRARY avutil HINTS /opt/ffmpeg/lib)
+find_library(LIBAVCODEC_LIBRARY avcodec HINTS /opt/ffmpeg/lib)
+find_library(LIBSWSCALE_LIBRARY swscale HINTS /opt/ffmpeg/lib)
+
+set(FFMPEG_INCLUDE_PATH "/opt/ffmpeg/include" CACHE PATH "path to libavcodec/avcodec.h")
+include_directories(${FFMPEG_INCLUDE_PATH})
+
+if(NOT LIBAVCODEC_LIBRARY OR NOT FFMPEG_INCLUDE_PATH)
+	message(WARNING "Could not find ffmpeg libraries, not building receivers...")
+endif()
 
 ###########
 ## Build ##
@@ -37,9 +79,12 @@ include_directories(
     ${Qt5Gui_INCLUDE_DIRS}
     ${Qt5Widgets_INCLUDE_DIRS}
     ${catkin_INCLUDE_DIRS}
+    ${VTK_INCLUDE_DIRS}
+    src
     )
 
 
+include_directories(${OpenCV_INCLUDE_DIRS})
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
@@ -49,6 +94,12 @@ add_executable(rosbag_editor
     src/rosbag_editor.ui
     src/filter_frames.cpp
     src/filter_frames.ui
+    src/cqtopencvviewergl.cpp
+    src/calibrator.cpp
+    src/imageviewer.cpp
+    src/imageviewer.ui
+    src/pointcloudviewer.cpp
+    src/pointcloudviewer.ui
     desktop/resources.qrc
     )
 
@@ -61,8 +112,20 @@ add_dependencies(rosbag_editor ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPO
    ${catkin_LIBRARIES}
    Qt5::Core
    Qt5::Widgets
+   Qt5::Gui
+   ${OpenCV_LIBS}
+   ${LIBAVUTIL_LIBRARY}
+   ${LIBAVCODEC_LIBRARY}
+   ${LIBSWSCALE_LIBRARY}
+   ${VTK_LIBRARIES}
+   ${PCL_LIBRARIES}
  )
 
+ link_directories(
+	${VTK_LIBRARY_DIRS}
+	)
+
+#  add_subdirectory(src/lib)
 
 #############
 ## Install ##
